@@ -226,9 +226,8 @@
 
         function divideText() {
             const rawText = inputText.value;
-            // Split by line and remove empty ones from end
             let lines = rawText.split(/\r?\n/);
-            if(lines[lines.length-1].trim() === "") lines.pop(); // Remove trailing empty line
+            if(lines[lines.length-1].trim() === "") lines.pop(); 
 
             const totalLines = lines.length;
             const parts = parseInt(document.getElementById('partsInput').value) || 1;
@@ -241,7 +240,7 @@
             const baseSize = Math.floor(totalLines / parts);
             const remainder = totalLines % parts;
 
-            // Show Math Info
+            // Math Info
             let mathMsg = `Calculation: ${totalLines} ÷ ${parts} = ${baseSize} lines per part`;
             if (remainder > 0) mathMsg += ` (with ${remainder} lines distributed to first ${remainder} parts)`;
             document.getElementById('mathInfo').innerText = mathMsg;
@@ -252,8 +251,6 @@
 
             let currentIdx = 0;
             for (let i = 0; i < parts; i++) {
-                // Logic: Distribute remainder to the first few parts
-                // If remainder is 2, Part 1 and Part 2 get +1 line.
                 let extra = (i < remainder) ? 1 : 0;
                 let size = baseSize + extra;
                 
@@ -270,21 +267,24 @@
             
             const textContent = lines.join('\n');
 
+            // FIX: စာသားကို URL Encode လုပ်ပြီးမှ ပို့မယ်။ ဒါမှ Backslash (\) တွေ မပျောက်မှာ။
+            const safeText = encodeURIComponent(textContent);
+
             div.innerHTML = `
                 <div class="card-header">
                     <span>Part ${partNum}</span>
                     <span>${lines.length} lines</span>
                 </div>
                 <div class="result-text">${escapeHtml(textContent)}</div>
-                <button class="btn-copy" onclick="copyCard(this, \`${escapeHtml(textContent)}\`)">📋 Copy Part ${partNum}</button>
+                <button class="btn-copy" onclick="copyCard(this, '${safeText}')">📋 Copy Part ${partNum}</button>
             `;
             container.appendChild(div);
         }
 
-        function copyCard(btn, text) {
-            // Because we escaped HTML for display, we need to unescape slightly or just use the raw logic
-            // But simpler way: grab from the hidden textarea logic or pass properly.
-            // Let's rely on textarea approach for cleaner copy:
+        function copyCard(btn, encodedText) {
+            // FIX: Copy ကူးခါနီးမှ စာသားကို ပြန်ဖော် (Decode) မယ်။
+            const text = decodeURIComponent(encodedText);
+
             const textArea = document.createElement('textarea');
             textArea.value = text;
             document.body.appendChild(textArea);
