@@ -241,6 +241,7 @@
             reader.readAsText(file);
         });
 
+        // --- FIXED FUNCTION: Smart ASS Parsing ---
         function processASS(content) {
             rawFileContent = content.split(/\r?\n/);
             parsedDialogues = [];
@@ -252,13 +253,35 @@
                 if (inEvents && trimmed.startsWith('[') && trimmed !== '[Events]') inEvents = false;
 
                 if (inEvents && trimmed.startsWith('Dialogue:')) {
-                    let commaCount = 0, splitIdx = -1;
+                    let commaCount = 0;
+                    let splitIdx = -1;
+                    let stack = 0; // Tracks if we are inside { } or ( )
+
                     for (let i = 0; i < line.length; i++) {
-                        if (line[i] === ',') {
+                        const char = line[i];
+                        
+                        // Ignore commas inside brackets/parentheses (e.g., \fad(640,1))
+                        if (char === '{' || char === '(') stack++;
+                        if (char === '}' || char === ')') stack--;
+
+                        if (char === ',' && stack === 0) {
                             commaCount++;
-                            if (commaCount === 9) { splitIdx = i; break; }
+                            if (commaCount === 9) { 
+                                splitIdx = i; 
+                                break; 
+                            }
                         }
                     }
+
+                    // Fallback: If header format is weird, try to split at the first tag '{'
+                    // This handles cases where comma count is less than 9 but text starts with tags
+                    if (splitIdx === -1 && line.indexOf('{') !== -1) {
+                         // We assume the text starts at the first '{' if comma parsing failed
+                         // Taking index-1 to keep the comma in the header if it exists there
+                         const firstTag = line.indexOf('{');
+                         if(firstTag > 10) splitIdx = firstTag - 1; 
+                    }
+
                     if (splitIdx !== -1) {
                         parsedDialogues.push({
                             id: index, 
@@ -364,6 +387,7 @@
         function downloadASS() {
             let exportLines = [...rawFileContent];
             parsedDialogues.forEach(item => { exportLines[item.originalIndex] = item.header + item.text; });
+            // Added charset=utf-8 explicitly for better compatibility
             const blob = new Blob([exportLines.join('\n')], { type: 'text/plain;charset=utf-8' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
