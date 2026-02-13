@@ -267,8 +267,8 @@
             
             const textContent = lines.join('\n');
 
-            // FIX: စာသားကို URL Encode လုပ်ပြီးမှ ပို့မယ်။ ဒါမှ Backslash (\) တွေ မပျောက်မှာ။
-            const safeText = encodeURIComponent(textContent);
+            // Fixed Code (Single Quote တွေကိုပါ %27 အဖြစ် ပြောင်းပေးလိုက်ခြင်း)
+            const safeText = encodeURIComponent(textContent).replace(/'/g, "%27");
 
             div.innerHTML = `
                 <div class="card-header">
