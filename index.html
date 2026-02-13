@@ -243,59 +243,51 @@
 
         // --- FIXED FUNCTION: Smart ASS Parsing ---
 // --- FIXED FUNCTION: Dynamic ASS Parsing (Format-aware) ---
+// --- FIXED FUNCTION: Tag-First Priority Parsing (No Strict Limits) ---
         function processASS(content) {
             rawFileContent = content.split(/\r?\n/);
             parsedDialogues = [];
             let inEvents = false;
-            let expectedCommas = 9; // Default standard
+            let expectedCommas = 9; // Standard ASS format default
 
             rawFileContent.forEach((line, index) => {
                 const trimmed = line.trim();
                 
-                // 1. [Events] section ရောက်မရောက် စစ်မယ်
                 if (trimmed === '[Events]') inEvents = true;
-                if (inEvents && trimmed.startsWith('[') && trimmed !== '[Events]') inEvents = false;
-
-                // 2. Format: လိုင်းကို ရှာပြီး Field ဘယ်နှခုပါလဲ တွက်မယ် (ကော်မာ ဘယ်နှခုဖြတ်ရမလဲသိဖို့)
                 if (inEvents && trimmed.startsWith('Format:')) {
                     const fields = trimmed.substring(7).split(',');
                     expectedCommas = fields.length - 1;
-                    console.log(`Detected Format with ${expectedCommas} commas.`);
                 }
 
-                // 3. Dialogue: လိုင်းတွေကို ဖြတ်မယ်
                 if (inEvents && trimmed.startsWith('Dialogue:')) {
-                    let commaCount = 0;
                     let splitIdx = -1;
-                    let stack = 0; // ကွင်းပိတ်/ကွင်းဖွင့် အတွင်းက ကော်မာတွေကို ကျော်ဖို့
 
-                    for (let i = 0; i < line.length; i++) {
-                        const char = line[i];
-                        
-                        // Tag {} နဲ့ () ထဲက ကော်မာတွေကို ထည့်မရေဘူး
-                        if (char === '{' || char === '(') stack++;
-                        if (char === '}' || char === ')') stack--;
-
-                        if (char === ',' && stack === 0) {
-                            commaCount++;
-                            if (commaCount === expectedCommas) { 
-                                splitIdx = i; 
-                                break; 
+                    // SOLUTION: Comma တွေကို လိုက်ရေမနေတော့ဘဲ Tag အစ '{' ကို အရင်ရှာမယ်
+                    // Tag ပါတဲ့စာကြောင်းဆိုရင် Tag ရှေ့ကနေ တိခနဲဖြတ်မယ် (အရှင်းဆုံးနည်းလမ်း)
+                    const firstTagIndex = line.indexOf('{');
+                    
+                    if (firstTagIndex !== -1 && firstTagIndex > 10) {
+                        // Tag တွေ့ရင် Tag ရဲ့ရှေ့က ကော်မာနေရာကို ယူမယ်
+                        splitIdx = firstTagIndex - 1;
+                    } else {
+                        // Tag မပါတဲ့ စာကြောင်းတွေအတွက်ပဲ Comma ရေတဲ့နည်းအဟောင်းကို သုံးမယ်
+                        let commaCount = 0;
+                        for (let i = 0; i < line.length; i++) {
+                            if (line[i] === ',') {
+                                commaCount++;
+                                if (commaCount === expectedCommas) { 
+                                    splitIdx = i; 
+                                    break; 
+                                }
                             }
                         }
-                    }
-
-                    // Fallback: အကယ်၍ Format ကမမှန်လို့ ကော်မာမပြည့်ခဲ့ရင် Tag အစ '{' ကို ရှာပြီးဖြတ်မယ်
-                    if (splitIdx === -1) {
-                         const firstTag = line.indexOf('{');
-                         // Header အနည်းဆုံး စာလုံး ၂၀ လောက်တော့ ရှိတတ်လို့ ၁၀ ကျော်မှ ယူမယ်
-                         if (firstTag > 10) splitIdx = firstTag - 1; 
                     }
 
                     if (splitIdx !== -1) {
                         parsedDialogues.push({
                             id: index, 
                             originalIndex: index,
+                            // splitIdx + 1 ဆိုပြီး ကော်မာကို Header ထဲထည့်လိုက်မယ်
                             header: line.substring(0, splitIdx + 1),
                             text: line.substring(splitIdx + 1)
                         });
