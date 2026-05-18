@@ -207,6 +207,47 @@
             margin-top: 12px; flex-wrap: wrap;
         }
 
+        /* ── FIND & REPLACE ── */
+        .fnr-panel {
+            margin-top: 14px;
+            border: 1px solid #0a2a3a;
+            border-radius: 8px;
+            background: rgba(0,229,255,0.03);
+            overflow: hidden;
+        }
+        .fnr-head {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 9px 14px;
+            background: rgba(0,229,255,0.06);
+            border-bottom: 1px solid #0a2a3a;
+            cursor: pointer; user-select: none;
+        }
+        .fnr-title { font-size: 0.78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+        .fnr-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+        .fnr-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .fnr-input {
+            flex: 1; min-width: 140px;
+            background: var(--dim); border: 1px solid var(--border);
+            color: #fff; padding: 8px 12px; border-radius: 6px;
+            font-family: var(--mono); font-size: 0.82rem;
+            transition: border-color 0.2s;
+        }
+        .fnr-input:focus { border-color: var(--accent); }
+        .fnr-input::placeholder { color: #3a3a55; }
+        .fnr-label { font-size: 0.75rem; color: var(--muted); min-width: 65px; font-weight: 600; }
+        .fnr-count { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); min-width: 80px; }
+        .btn-fnr {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 6px;
+            border: 1px solid var(--border); background: var(--dim);
+            color: var(--text); font-family: var(--sans); font-weight: 600;
+            font-size: 0.8rem; cursor: pointer; transition: all 0.18s; white-space: nowrap;
+        }
+        .btn-fnr:hover { background: #30303f; border-color: var(--accent); }
+        .btn-fnr.danger { border-color: #ff4060; color: #ff8080; }
+        .btn-fnr.danger:hover { background: rgba(255,64,96,0.15); }
+        .fnr-highlight { background: rgba(255,200,0,0.35); border-radius: 2px; }
+
         /* ── TOAST ── */
         #toast {
             position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
@@ -291,6 +332,35 @@
         <div class="status-box" id="statusBox">—</div>
         <div class="error-list" id="errorList"></div>
         <textarea id="outputResult" style="min-height: 200px; border-color: #005a3c;" readonly></textarea>
+
+        <!-- FIND & REPLACE -->
+        <div class="fnr-panel" id="fnrPanel">
+            <div class="fnr-head" onclick="toggleFnr()">
+                <span class="fnr-title">🔍 Find &amp; Replace</span>
+                <span id="fnrToggleIcon" style="color:var(--muted); font-size:0.8rem;">▼ open</span>
+            </div>
+            <div class="fnr-body" id="fnrBody" style="display:none;">
+                <div class="fnr-row">
+                    <span class="fnr-label">Find:</span>
+                    <input class="fnr-input" id="fnrFind" placeholder="ရှာမည့် စာသား..." oninput="fnrPreview()">
+                    <span class="fnr-count" id="fnrCount"></span>
+                    <label style="font-size:0.75rem; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;">
+                        <input type="checkbox" id="fnrRegex" onchange="fnrPreview()" style="accent-color:var(--accent);"> Regex
+                    </label>
+                    <label style="font-size:0.75rem; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;">
+                        <input type="checkbox" id="fnrCase" onchange="fnrPreview()" style="accent-color:var(--accent);"> Case
+                    </label>
+                </div>
+                <div class="fnr-row">
+                    <span class="fnr-label">Replace:</span>
+                    <input class="fnr-input" id="fnrReplace" placeholder="ပြောင်းမည့် စာသား... (blank = delete)">
+                    <button class="btn-fnr" onclick="doReplace()">Replace All</button>
+                    <button class="btn-fnr danger" onclick="doDelete()">🗑 Delete All</button>
+                </div>
+                <div id="fnrMsg" style="font-size:0.75rem; color:var(--success); font-family:var(--mono); display:none;"></div>
+            </div>
+        </div>
+
         <div class="out-actions">
             <button class="btn" onclick="copyResult()">📋 Copy</button>
             <button class="btn btn-success" onclick="downloadResult()">💾 Download .ass</button>
@@ -426,8 +496,79 @@
         inputText.value   = '';
         document.getElementById('outputPanel').style.display = 'none';
         document.getElementById('outputResult').value = '';
+        document.getElementById('fnrCount').textContent = '';
+        document.getElementById('fnrMsg').style.display = 'none';
         updateCounts();
     }
+
+    // ── Find & Replace ─────────────────────────────────
+    function toggleFnr() {
+        const body = document.getElementById('fnrBody');
+        const icon = document.getElementById('fnrToggleIcon');
+        const open = body.style.display === 'none';
+        body.style.display = open ? 'flex' : 'none';
+        icon.textContent   = open ? '▲ close' : '▼ open';
+        if (open) document.getElementById('fnrFind').focus();
+    }
+
+    function buildRegex() {
+        const find    = document.getElementById('fnrFind').value;
+        const useRe   = document.getElementById('fnrRegex').checked;
+        const useCase = document.getElementById('fnrCase').checked;
+        if (!find) return null;
+        try {
+            const pattern = useRe ? find : find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const flags   = 'g' + (useCase ? '' : 'i');
+            return new RegExp(pattern, flags);
+        } catch(e) {
+            toast('Invalid regex: ' + e.message, true);
+            return null;
+        }
+    }
+
+    function fnrPreview() {
+        const ta    = document.getElementById('outputResult');
+        const count = document.getElementById('fnrCount');
+        const re    = buildRegex();
+        if (!re || !ta.value) { count.textContent = ''; return; }
+        const matches = ta.value.match(re);
+        count.textContent = matches ? `${matches.length} match${matches.length > 1 ? 'es' : ''}` : '0 matches';
+    }
+
+    function doReplace() {
+        const ta      = document.getElementById('outputResult');
+        const replace = document.getElementById('fnrReplace').value;
+        const re      = buildRegex();
+        const msg     = document.getElementById('fnrMsg');
+        if (!re) return;
+        if (!ta.value.trim()) { toast('Output is empty!', true); return; }
+
+        const before  = ta.value;
+        const matches = before.match(re);
+        if (!matches) { toast('No matches found', true); return; }
+
+        ta.value = before.replace(re, replace);
+        // make editable if not already
+        ta.removeAttribute('readonly');
+
+        msg.style.display = 'block';
+        msg.textContent   = `✅ Replaced ${matches.length} occurrence${matches.length > 1 ? 's' : ''}.`;
+        fnrPreview();
+        // update line count
+        const lineCount = ta.value.split('\n').filter(l => l.trim()).length;
+        document.getElementById('resultCount').textContent = `${lineCount} lines`;
+        toast(`Replaced ${matches.length} occurrence(s)`);
+    }
+
+    function doDelete() {
+        document.getElementById('fnrReplace').value = '';
+        doReplace();
+    }
+
+    // Make output editable after merge
+    document.getElementById('outputResult').addEventListener('focus', function() {
+        this.removeAttribute('readonly');
+    });
 
     // ── Toast ──────────────────────────────────────────
     let toastTimer;
