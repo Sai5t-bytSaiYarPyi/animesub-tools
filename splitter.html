@@ -231,6 +231,10 @@
                 <label class="ctrl-label">Lines per Part</label>
                 <input type="number" id="sizeInput" value="0" min="0" placeholder="Auto" title="Set manually, or leave 0 for auto from Parts">
             </div>
+            <div class="ctrl-group">
+                <label class="ctrl-label" title="Copy လိုက်ရင် label ပေါ်မှာ ဘယ်နှစ်ခု offset ထားမလဲ">Label Offset</label>
+                <input type="number" id="offsetInput" value="1" min="0" style="width:70px;" title="Part 1 copy → Part (1+offset) label ပါလာမည်">
+            </div>
             <button class="btn btn-accent" onclick="divideText()">⚡ Divide</button>
             <button class="btn" onclick="clearAll()">🗑️ Clear</button>
         </div>
@@ -357,17 +361,22 @@
 
     // ── Copy single part ───────────────────────────────
     function copyPart(idx, btn) {
-        const text = currentParts[idx].join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            toast(`Copied Part ${idx + 1} (${currentParts[idx].length} lines)`);
+        const offset    = parseInt(document.getElementById('offsetInput').value) || 0;
+        const labelNum  = idx + 1 + offset;          // e.g. Part 1 + offset 1 = Part 2
+        const label     = `Part ${labelNum}`;
+        const lines     = currentParts[idx].join('\n');
+        const fullText  = `${label}\n${lines}`;
 
-            // Reset all buttons first
+        navigator.clipboard.writeText(fullText).then(() => {
+            toast(`Copied Part ${idx + 1} → labeled "${label}" (${currentParts[idx].length} lines)`);
+
             document.querySelectorAll('.btn-copy-part').forEach(b => {
                 b.classList.remove('done');
-                b.textContent = `📋 Copy Part ${parseInt(b.dataset.index) + 1}`;
+                const bi = parseInt(b.dataset.index);
+                b.textContent = `📋 Copy Part ${bi + 1}`;
             });
             btn.classList.add('done');
-            btn.textContent = `✅ Copied Part ${idx + 1}`;
+            btn.textContent = `✅ Copied (→ ${label})`;
         }).catch(() => toast('Copy failed — browser restriction', true));
     }
 
