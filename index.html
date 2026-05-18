@@ -200,6 +200,40 @@
         .batch-chip:hover { background: var(--accent); box-shadow: 0 0 10px var(--glow); }
         .batch-chip.done { background: var(--success); border-color: var(--success); color: #000; }
 
+        /* ── PROMPT BOX ── */
+        .prompt-box {
+            margin: 0 20px 0;
+            border: 1px solid #2a1535;
+            border-radius: 10px;
+            background: rgba(180,80,255,0.04);
+            overflow: hidden;
+        }
+        .prompt-head {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 14px;
+            background: rgba(180,80,255,0.07);
+            border-bottom: 1px solid #2a1535;
+            flex-wrap: wrap; gap: 8px;
+        }
+        .prompt-title {
+            font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; color: #c080ff;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .prompt-meta { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+        .prompt-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+        textarea.prompt-input {
+            width: 100%; min-height: 80px; resize: vertical;
+            background: var(--dim); border: 1px solid #2a1535;
+            color: #ddd; padding: 10px 12px; border-radius: 6px;
+            font-family: var(--sans); font-size: 0.85rem; line-height: 1.6;
+            transition: border-color 0.2s;
+        }
+        textarea.prompt-input:focus { border-color: #c080ff; outline: none; }
+        textarea.prompt-input::placeholder { color: #3a3050; }
+        .prompt-hint { font-size: 0.73rem; color: var(--muted); }
+        .prompt-hint span { color: #c080ff; }
+
         /* ── EDITOR TABLE ── */
         .table-head {
             display: grid; grid-template-columns: 56px 1fr 2fr;
@@ -348,6 +382,34 @@
         </div>
     </div>
 
+    <!-- PROMPT BOX -->
+    <div class="prompt-box" id="promptBox" style="display:none; margin-top:16px;">
+        <div class="prompt-head">
+            <span class="prompt-title">
+                🤖 AI Prompt
+                <span style="background:#1a0a2a; padding:2px 8px; border-radius:10px; font-size:0.7rem; color:#c080ff;">
+                    auto-saved
+                </span>
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <label style="font-size:0.75rem; color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" id="promptEnabled" checked onchange="savePrompt()" style="accent-color:#c080ff;">
+                    Include in copy
+                </label>
+                <button class="btn" style="padding:4px 12px; font-size:0.75rem;" onclick="clearPrompt()">🗑 Clear</button>
+            </div>
+        </div>
+        <div class="prompt-body">
+            <textarea class="prompt-input" id="promptText"
+                placeholder="AI ဆီပို့မယ့် prompt ကို ဒီမှာ ရေးထားပါ...&#10;ဥပမာ: ဆိုတာပြောင်းပြန်ဆိုပေးပါ..."
+                oninput="savePrompt()"
+            ></textarea>
+            <div class="prompt-hint">
+                💡 Batch copy တိုင်း prompt ရဲ့ <span>နောက်မှာ</span> subtitle lines တွေ ပါလာမည်။ Web ပိတ်ဖွင့်လဲ <span>ပျောက်မည်မဟုတ်</span>။
+            </div>
+        </div>
+    </div>
+
     <!-- TABLE -->
     <div class="table-head">
         <div>Line</div>
@@ -428,6 +490,7 @@
 
         renderEditor(parsedDialogue);
         document.getElementById('bulkPanel').style.display = 'block';
+        document.getElementById('promptBox').style.display = 'block';
         document.getElementById('downloadBtn').style.display = 'inline-flex';
         setStatus(`✅ Loaded — ${parsedDialogue.length} dialogue lines`, true);
         generateBatches();
@@ -523,9 +586,13 @@
     }
 
     function copyBatch(all, s, e, chip) {
-        const text = all.slice(s, e).map(d => d.text).join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            toast(`Copied Batch (${e - s} lines)`);
+        const lines     = all.slice(s, e).map(d => d.text).join('\n');
+        const prompt    = document.getElementById('promptText').value.trim();
+        const enabled   = document.getElementById('promptEnabled').checked;
+        const fullText  = (enabled && prompt) ? prompt + '\n\n' + lines : lines;
+
+        navigator.clipboard.writeText(fullText).then(() => {
+            toast(`Copied Batch (${e - s} lines)` + (enabled && prompt ? ' + Prompt' : ''));
             document.querySelectorAll('.batch-chip').forEach(c => {
                 c.classList.remove('done');
                 c.innerHTML = c.innerHTML.replace('✅ ', '');
@@ -534,6 +601,24 @@
             chip.innerHTML = `✅ Batch ${Math.floor(s/parseInt(document.getElementById('batchSizeInput').value||100))+1}<br><small>${s+1}–${e}</small>`;
         });
     }
+
+    // ── Prompt localStorage ────────────────────────────
+    function savePrompt() {
+        localStorage.setItem('animesub_prompt',   document.getElementById('promptText').value);
+        localStorage.setItem('animesub_prompt_on', document.getElementById('promptEnabled').checked ? '1' : '0');
+    }
+    function loadPrompt() {
+        const saved = localStorage.getItem('animesub_prompt');
+        const on    = localStorage.getItem('animesub_prompt_on');
+        if (saved !== null) document.getElementById('promptText').value = saved;
+        if (on === '0')     document.getElementById('promptEnabled').checked = false;
+    }
+    function clearPrompt() {
+        document.getElementById('promptText').value = '';
+        savePrompt();
+        toast('Prompt cleared');
+    }
+    loadPrompt();
 
     // ── Copy All ───────────────────────────────────────
     function copyAll(type) {
