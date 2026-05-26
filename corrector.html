@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeSub Pro — Correction Applier</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:      #080810;
+            --surface: #0f0f1a;
+            --card:    #141420;
+            --border:  #1e1e30;
+            --accent:  #a78bfa;
+            --accent2: #7c3aed;
+            --glow:    rgba(167,139,250,0.2);
+            --text:    #e8e8f0;
+            --muted:   #6b6b88;
+            --dim:     #282838;
+            --success: #00e5a0;
+            --error:   #ff4060;
+            --warn:    #ffab40;
+            --del:     #ff4060;
+            --add:     #00e5a0;
+            --mono:    'Space Mono', monospace;
+            --sans:    'DM Sans', 'Myanmar Text', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+        body {
+            font-family: var(--sans);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 24px 16px 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(167,139,250,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(167,139,250,0.025) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none; z-index: 0;
+        }
+
+        .nav {
+            display: flex; gap: 4px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 5px;
+            margin-bottom: 32px;
+            position: relative; z-index: 1;
+            flex-wrap: wrap; justify-content: center;
+        }
+        .nav a {
+            text-decoration: none; color: var(--muted);
+            font-size: 0.82rem; font-weight: 600;
+            padding: 8px 16px; border-radius: 7px;
+            transition: all 0.2s;
+        }
+        .nav a:hover { color: var(--text); background: var(--dim); }
+        .nav a.active { color: #fff; background: var(--accent2); box-shadow: 0 0 16px var(--glow); }
+
+        .page-header { text-align: center; margin-bottom: 28px; position: relative; z-index: 1; }
+        .page-header h1 { font-family: var(--mono); font-size: 1.8rem; letter-spacing: 4px; text-transform: uppercase; color: #fff; }
+        .page-header h1 span { color: var(--accent); }
+        .page-header p { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+
+        .wrap {
+            width: 100%; max-width: 1200px;
+            display: flex; flex-direction: column; gap: 20px;
+            position: relative; z-index: 1;
+        }
+
+        /* HOW-TO */
+        .howto {
+            background: rgba(167,139,250,0.05);
+            border: 1px solid rgba(167,139,250,0.15);
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-size: 0.82rem; color: var(--muted);
+            line-height: 1.8;
+        }
+        .howto strong { color: var(--accent); }
+        .howto code {
+            font-family: var(--mono); font-size: 0.76rem;
+            background: rgba(0,0,0,0.3);
+            padding: 1px 6px; border-radius: 3px;
+            color: #ddd;
+        }
+
+        /* INPUT GRID */
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex; flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        .panel-head {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px;
+        }
+        .panel-title {
+            font-size: 0.8rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1px;
+            color: var(--accent);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .badge {
+            background: var(--bg); color: var(--text);
+            padding: 2px 10px; border-radius: 20px;
+            font-family: var(--mono); font-size: 0.72rem;
+        }
+
+        textarea {
+            flex: 1;
+            background: var(--dim);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 7px;
+            resize: none;
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            line-height: 1.65;
+            min-height: 240px;
+            transition: border-color 0.2s;
+        }
+        textarea:focus { border-color: var(--accent); }
+        textarea::placeholder { color: #3a3a55; }
+
+        /* CONTROLS */
+        .controls {
+            display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 28px; border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--dim); color: var(--text);
+            font-family: var(--sans); font-weight: 600; font-size: 0.9rem;
+            cursor: pointer; transition: all 0.18s;
+        }
+        .btn:hover { background: #30303f; border-color: var(--accent); }
+        .btn-accent { background: var(--accent2); color: #fff; border: none; box-shadow: 0 4px 20px var(--glow); }
+        .btn-accent:hover { background: #6d28d9; transform: translateY(-1px); }
+        .btn-success { background: #003a2a; color: var(--success); border-color: #005a3c; }
+        .btn-success:hover { background: #004d38; }
+
+        /* OUTPUT */
+        .output-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: none;
+        }
+        .out-head {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+        }
+
+        /* STATS ROW */
+        .stats-row {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .stat-chip {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 8px 14px;
+            font-family: var(--mono); font-size: 0.78rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .stat-chip .val { font-size: 1.1rem; font-weight: 700; }
+        .stat-chip.ok  .val { color: var(--success); }
+        .stat-chip.changed .val { color: var(--accent); }
+        .stat-chip.unchanged .val { color: var(--muted); }
+        .stat-chip.warn .val { color: var(--warn); }
+
+        /* DIFF VIEWER */
+        .diff-toggle {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .diff-toggle label {
+            font-size: 0.78rem; color: var(--muted);
+            display: flex; align-items: center; gap: 5px; cursor: pointer;
+        }
+
+        .diff-viewer {
+            max-height: 320px; overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 10px 12px;
+            font-family: var(--mono); font-size: 0.78rem;
+            line-height: 1.7;
+            display: none;
+            margin-bottom: 14px;
+        }
+        .diff-viewer::-webkit-scrollbar { width: 5px; }
+        .diff-viewer::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+        .diff-line { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .diff-line:last-child { border-bottom: none; }
+        .diff-num { color: var(--muted); min-width: 38px; font-size: 0.72rem; }
+        .diff-del { color: var(--del); text-decoration: line-through; opacity: 0.7; }
+        .diff-add { color: var(--add); }
+        .diff-same { color: #888; }
+        .diff-arrow { color: var(--muted); font-size: 0.7rem; }
+
+        /* PLAIN OUTPUT */
+        #outputResult {
+            min-height: 200px;
+            border-color: rgba(167,139,250,0.3);
+        }
+        #outputResult:focus { border-color: var(--accent); }
+
+        .out-actions {
+            display: flex; gap: 10px; justify-content: flex-end;
+            margin-top: 12px; flex-wrap: wrap;
+        }
+
+        /* STATUS */
+        .status-box {
+            padding: 10px 14px; border-radius: 7px;
+            background: var(--card); font-family: var(--mono);
+            font-size: 0.82rem; margin-bottom: 14px;
+            border-left: 3px solid var(--muted); line-height: 1.5;
+        }
+        .status-ok   { border-left-color: var(--success); color: var(--success); }
+        .status-warn { border-left-color: var(--warn); color: var(--warn); }
+
+        /* UNMATCHED */
+        .unmatched-box {
+            background: rgba(255,64,96,0.06);
+            border: 1px solid rgba(255,64,96,0.2);
+            border-radius: 7px; padding: 10px 14px;
+            font-family: var(--mono); font-size: 0.75rem;
+            color: var(--error); display: none;
+            margin-bottom: 12px;
+            max-height: 100px; overflow-y: auto;
+        }
+
+        /* TOAST */
+        #toast {
+            position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+            background: var(--success); color: #000;
+            padding: 12px 24px; border-radius: 8px;
+            font-weight: 700; font-size: 0.88rem;
+            z-index: 999; opacity: 0;
+            transition: all 0.3s; pointer-events: none; white-space: nowrap;
+        }
+        #toast.show { opacity: 1; bottom: 36px; }
+
+        @media (max-width: 700px) {
+            .input-grid { grid-template-columns: 1fr; }
+            textarea { min-height: 160px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="index.html">📝 Editor & Splitter</a>
+    <a href="rebuilder.html">🔗 Merger & Rebuilder</a>
+    <a href="splitter.html">➗ Text Divider</a>
+    <a href="corrector.html" class="active">✅ Correction Applier</a>
+</nav>
+
+<div class="page-header">
+    <h1>AnimeSub <span>Corrector</span></h1>
+    <p>AI Correction Output → Auto-Apply to Translated Lines</p>
+</div>
+
+<div class="wrap">
+
+    <!-- HOW-TO -->
+    <div class="howto">
+        <strong>လုပ်ပုံ —</strong>
+        <strong>Left:</strong> ဘာသာပြန် output (<code>Line 1: [text]</code> or <code>Line 1: text</code>) &nbsp;|&nbsp;
+        <strong>Right:</strong> Corrector output (<code>Line X: [-old-][+new+]</code> or <code>Line X: [+new+]</code> or <code>Line X: new text</code>)
+        &nbsp;→&nbsp; <strong>Apply</strong> နှိပ်ရင် correction တွေ auto-apply လုပ်ပြီး plain text ထုတ်ပေးမည်
+    </div>
+
+    <!-- INPUT GRID -->
+    <div class="input-grid">
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title">1. Translated Lines</span>
+                <span class="badge" id="transCount">0 lines</span>
+            </div>
+            <textarea id="inputTranslated"
+                placeholder="Line 1: [ကျေးဇူးတင်ပါတယ်]&#10;Line 2: မင်္ဂလာပါ&#10;Line 3: [ဒါ ဘာလဲ]"
+                oninput="updateTransCount()"
+            ></textarea>
+        </div>
+        <div class="panel">
+            <div class="panel-head">
+                <span class="panel-title">2. AI Corrector Output</span>
+                <span class="badge" id="corrCount">0 corrections</span>
+            </div>
+            <textarea id="inputCorrections"
+                placeholder="Line 2: [-မင်္ဂလာပါ-][+မင်္ဂလာ ပါ+]&#10;Line 3: [+ဒါက ဘာလဲ+]&#10;Line 5: ငါပြင်ပြီ"
+                oninput="updateCorrCount()"
+            ></textarea>
+        </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <button class="btn btn-accent" onclick="applyCorrections()">✅ Apply Corrections</button>
+        <button class="btn" onclick="clearAll()">🗑️ Clear All</button>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="output-panel" id="outputPanel">
+        <div class="out-head">
+            <span class="panel-title" style="color: var(--success); font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;">3. Result (Plain Text)</span>
+            <span class="badge" id="resultCount">0 lines</span>
+        </div>
+
+        <div class="stats-row" id="statsRow"></div>
+
+        <div class="status-box" id="statusBox">—</div>
+
+        <div class="unmatched-box" id="unmatchedBox"></div>
+
+        <!-- DIFF TOGGLE -->
+        <div class="diff-toggle">
+            <label>
+                <input type="checkbox" id="showDiff" onchange="toggleDiff()" style="accent-color: var(--accent);">
+                Show diff view (ဘာပြောင်းသွားလဲ ကြည့်မယ်)
+            </label>
+        </div>
+
+        <div class="diff-viewer" id="diffViewer"></div>
+
+        <textarea id="outputResult" readonly></textarea>
+
+        <div class="out-actions">
+            <button class="btn" onclick="copyResult()">📋 Copy</button>
+            <button class="btn btn-success" onclick="downloadResult()">💾 Download .txt</button>
+        </div>
+    </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+    // ── Parse translated input ──────────────────────────
+    // Supports: "Line 1: [text]", "Line 1: text", "Line 1:[text]"
+    function parseTranslated(raw) {
+        const map = {};
+        const lines = raw.split(/\r?\n/);
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            const m = line.match(/^Line\s*(\d+)\s*:\s*\[?([\s\S]*?)\]?\s*$/i);
+            if (m) {
+                map[parseInt(m[1])] = m[2];
+            }
+        }
+        return map;
+    }
+
+    // ── Parse corrector output ──────────────────────────
+    // Supports:
+    //   Line X: [-old-][+new+]
+    //   Line X: [+new+]
+    //   Line X: [-old-]          (deletion → empty)
+    //   Line X: new plain text   (no brackets → take as corrected)
+    function parseCorrections(raw) {
+        const map = {};
+        const lines = raw.split(/\r?\n/);
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            const lineMatch = line.match(/^Line\s*(\d+)\s*:\s*([\s\S]*)$/i);
+            if (!lineMatch) continue;
+
+            const num     = parseInt(lineMatch[1]);
+            const content = lineMatch[2].trim();
+
+            // Try [+corrected+]
+            const plusMatch = content.match(/\[\+([\s\S]*?)\+\]/);
+            if (plusMatch) {
+                map[num] = { corrected: plusMatch[1].trim(), hasPlus: true };
+                continue;
+            }
+
+            // Try [-old-] only (deletion → keep empty string)
+            const delMatch = content.match(/^\[-[\s\S]*?-\]\s*$/);
+            if (delMatch) {
+                map[num] = { corrected: '', hasPlus: true };
+                continue;
+            }
+
+            // Plain text correction
+            if (content.length > 0) {
+                map[num] = { corrected: content, hasPlus: false };
+            }
+        }
+        return map;
+    }
+
+    // ── Count helpers ───────────────────────────────────
+    function updateTransCount() {
+        const lines = document.getElementById('inputTranslated').value
+            .split(/\r?\n/).filter(l => l.trim() && /^Line\s*\d+/i.test(l)).length;
+        document.getElementById('transCount').textContent = `${lines} lines`;
+    }
+
+    function updateCorrCount() {
+        const lines = document.getElementById('inputCorrections').value
+            .split(/\r?\n/).filter(l => l.trim() && /^Line\s*\d+/i.test(l)).length;
+        document.getElementById('corrCount').textContent = `${lines} corrections`;
+    }
+
+    // ── Apply ───────────────────────────────────────────
+    let diffData = []; // for diff viewer
+
+    function applyCorrections() {
+        const rawTrans = document.getElementById('inputTranslated').value;
+        const rawCorr  = document.getElementById('inputCorrections').value;
+
+        const transMap = parseTranslated(rawTrans);
+        const corrMap  = parseCorrections(rawCorr);
+
+        if (Object.keys(transMap).length === 0) {
+            toast('Translated lines မရှိဘူး!', true); return;
+        }
+
+        const lineNums   = Object.keys(transMap).map(Number).sort((a, b) => a - b);
+        const resultLines = [];
+        diffData = [];
+
+        let changedCount   = 0;
+        let unchangedCount = 0;
+        const unmatched    = []; // corrections that had no matching original line
+
+        for (const num of lineNums) {
+            const original = transMap[num];
+            if (corrMap[num] !== undefined) {
+                const corrected = corrMap[num].corrected;
+                resultLines.push(corrected);
+                diffData.push({ num, original, corrected, changed: original !== corrected });
+                if (original !== corrected) changedCount++;
+                else unchangedCount++;
+            } else {
+                // No correction for this line — keep original
+                resultLines.push(original);
+                diffData.push({ num, original, corrected: original, changed: false });
+                unchangedCount++;
+            }
+        }
+
+        // Find unmatched corrections (line nums in corrMap but not in transMap)
+        for (const n of Object.keys(corrMap).map(Number)) {
+            if (!transMap[n]) {
+                unmatched.push(`Line ${n}: ${corrMap[n].corrected || '(deletion)'}`);
+            }
+        }
+
+        // ── Render output ──
+        const out   = document.getElementById('outputResult');
+        const panel = document.getElementById('outputPanel');
+        const stats = document.getElementById('statsRow');
+
+        out.value = resultLines.join('\n');
+        document.getElementById('resultCount').textContent = `${resultLines.length} lines`;
+        panel.style.display = 'block';
+
+        // Stats chips
+        stats.innerHTML = `
+            <div class="stat-chip ok">
+                <span class="val">${resultLines.length}</span>
+                <span>Total lines</span>
+            </div>
+            <div class="stat-chip changed">
+                <span class="val">${changedCount}</span>
+                <span>Corrected</span>
+            </div>
+            <div class="stat-chip unchanged">
+                <span class="val">${unchangedCount}</span>
+                <span>Unchanged</span>
+            </div>
+            ${unmatched.length ? `<div class="stat-chip warn"><span class="val">${unmatched.length}</span><span>Unmatched</span></div>` : ''}
+        `;
+
+        // Status box
+        const statusBox = document.getElementById('statusBox');
+        if (unmatched.length === 0) {
+            statusBox.className  = 'status-box status-ok';
+            statusBox.textContent = `✅ Applied ${changedCount} correction(s) across ${resultLines.length} lines.`;
+        } else {
+            statusBox.className  = 'status-box status-warn';
+            statusBox.textContent = `⚠️  Applied ${changedCount} correction(s). ${unmatched.length} correction(s) had no matching line in input.`;
+        }
+
+        // Unmatched
+        const unmBox = document.getElementById('unmatchedBox');
+        if (unmatched.length) {
+            unmBox.style.display = 'block';
+            unmBox.innerHTML = '<strong>Unmatched corrections:</strong><br>' + unmatched.map(u => `• ${u}`).join('<br>');
+        } else {
+            unmBox.style.display = 'none';
+        }
+
+        // Reset diff view
+        document.getElementById('showDiff').checked = false;
+        document.getElementById('diffViewer').style.display = 'none';
+        renderDiff();
+
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        toast(`Done! ${changedCount} lines corrected`);
+    }
+
+    // ── Diff viewer ─────────────────────────────────────
+    function toggleDiff() {
+        const show = document.getElementById('showDiff').checked;
+        document.getElementById('diffViewer').style.display = show ? 'block' : 'none';
+    }
+
+    function renderDiff() {
+        const viewer = document.getElementById('diffViewer');
+        if (!diffData.length) return;
+
+        const html = diffData.map(item => {
+            if (!item.changed) {
+                return `<div class="diff-line">
+                    <span class="diff-num">#${item.num}</span>
+                    <span class="diff-same">${esc(item.original)}</span>
+                </div>`;
+            }
+            return `<div class="diff-line">
+                <span class="diff-num">#${item.num}</span>
+                <span class="diff-del">${esc(item.original)}</span>
+                <span class="diff-arrow">→</span>
+                <span class="diff-add">${esc(item.corrected)}</span>
+            </div>`;
+        }).join('');
+
+        viewer.innerHTML = html;
+    }
+
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    // ── Copy / Download ─────────────────────────────────
+    function copyResult() {
+        const v = document.getElementById('outputResult').value;
+        if (!v.trim()) { toast('Nothing to copy!', true); return; }
+        navigator.clipboard.writeText(v).then(() => toast('Copied to clipboard!'));
+    }
+
+    function downloadResult() {
+        const v = document.getElementById('outputResult').value;
+        if (!v.trim()) { toast('Nothing to download!', true); return; }
+        const blob = new Blob([v], { type: 'text/plain;charset=utf-8' });
+        const a = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(blob),
+            download: 'corrected_lines.txt'
+        });
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        toast('Downloaded corrected_lines.txt!');
+    }
+
+    // ── Clear ───────────────────────────────────────────
+    function clearAll() {
+        document.getElementById('inputTranslated').value  = '';
+        document.getElementById('inputCorrections').value = '';
+        document.getElementById('outputPanel').style.display = 'none';
+        document.getElementById('outputResult').value = '';
+        document.getElementById('transCount').textContent = '0 lines';
+        document.getElementById('corrCount').textContent  = '0 corrections';
+        diffData = [];
+    }
+
+    // ── Toast ───────────────────────────────────────────
+    let toastTimer;
+    function toast(msg, isError = false) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.style.background = isError ? '#ff4444' : 'var(--success)';
+        el.style.color = isError ? '#fff' : '#000';
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+</script>
+</body>
+</html>
